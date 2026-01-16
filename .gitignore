@@ -1,0 +1,36 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+.venv/
+.env
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+eggs/
+.eggs/
+*.egg-info/
+.installed.cfg
+MANIFEST
+
+# Editors and IDEs (optional, but helpful)
+.idea/  # PyCharm
+.vscode/ # VS Code
+.mypy_cache/
+.pytest_cache/
+*.swp # vim
+
+# Operating System files
+.DS_Store # macOS
+*~ # Linux/macOS temporary files
+
+# Secrets and sensitive data
+secrets.env
+*.key
+*.pem
