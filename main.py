@@ -1,7 +1,6 @@
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
-
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import StreamingResponse
 import numpy as np
@@ -24,7 +23,7 @@ options = FaceLandmarkerOptions(
     min_face_detection_confidence=0.5 # 얼굴 탐지 신뢰도 임계값, 기본값 0.5
 )
 
-
+# 얼굴 랜드마크 시각화 함수
 def visualize(image, detection_result) -> np.ndarray:
     annotated_image = image.copy()
     height, width, _ = image.shape
@@ -99,19 +98,9 @@ async def analyze_face(file: UploadFile = File(...)):
             "z": float(lm.z)
         })
 
-    # 선택사항: 블렌드셰이프 데이터가 있다면 함께 포함
-    # blendshapes = []
-    # if result.face_blendshapes:
-    #     for category in result.face_blendshapes[0]:
-    #         blendshapes.append({
-    #             "category": category.category_name,
-    #             "score": float(category.score)
-    #         })
-
     # 4. JSON 응답
     return {
         "success": True,
         "landmark_count": len(all_landmarks),
         "landmarks": all_landmarks,
-        # "blendshapes": blendshapes if blendshapes else None
     }
