@@ -34,3 +34,6 @@ MANIFEST
 secrets.env
 *.key
 *.pem
+*.jpg
+*.png
+*.pt
