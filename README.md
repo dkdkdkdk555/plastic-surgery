@@ -1,1 +1,458 @@
-## 1. 개요\n### 1.1 목적\n사용자가 일상 생활 속에서 손쉽게 새로운 영단어를 캡처·검색·음성인식으로 수집하고, 앱 내 데이터베이스에 저장·관리하여 효율적인 암기를 지원한다.\n\n### 1.2 핵심 가치 제안\n- **언제 어디서든** 사진, 브라우저 공유, 음성 입력으로 단어를 즉시 저장  \n- **자동 추출·정제** OCR·API 연동을 통한 단어·뜻·예문 자동 입력  \n- **시각적 학습** 카드·목록 뷰 제공으로 복습 효율 극대화  \n- **오프라인 사용** 로컬 DB 기반 저장으로 네트워크 없이도 학습 가능  \n\n## 2. 기술 스택\n### Frontend\n- React Native (Expo) – iOS·Android 크로스플랫폼 UI  \n- TypeScript – 타입 안정성  \n- React Navigation – 화면 전환  \n- Reanimated 2 – 부드러운 카드 애니메이션  \n\n### Backend\n- Node.js (NestJS) – 모듈화된 API 서버  \n- Express + Swagger – API 문서화  \n- Python FastAPI (OCR·단어 의미 추출 마이크로서비스) – 이미지 → JSON 변환  \n\n### Hosting\n- AWS Elastic Beanstalk (Node.js) – API 배포  \n- AWS Lambda (Python OCR) – 이벤트 기반 이미지 처리  \n- AWS S3 – 이미지 파일 임시 저장  \n\n### DB\n- SQLite (앱 내 로컬) – 단어 데이터 영구 저장  \n- Amazon RDS PostgreSQL – 사용자·통계 동기화 (옵션)  \n\n## 3. 화면별 UI 구성\n\n### 메인 화면 (Home)\n\n- **단어 추가 버튼**: 플로팅 액션 버튼 → 사진 촬영·링크 공유·음성 입력 옵션 팝업\n- **단어 리스트/카드 토글**: 리스트와 카드 뷰 전환 스위치\n- **검색 바**: 입력 시 실시간 필터링\n\n#### 동작(Behavior)\n1. 사용자가 플로팅 버튼을 탭하면 “사진 촬영”, “링크 공유”, “음성 입력” 3가지 옵션이 모달로 표시된다.  \n2. 선택된 옵션에 따라 카메라 화면, 공유받은 텍스트 입력창, 음성 인식 화면이 순차적으로 호출된다.  \n\n#### 상태(States)\n1. **Idle** – 기본 리스트/카드가 표시된 상태.  \n2. **Adding** – 단어 추가 진행 중(촬영·입력·음성) 상태.  \n\n### 단어 추가 – 사진 촬영 화면\n\n- **카메라 프리뷰**: 실시간 카메라 화면  \n- **촬영 버튼**: 사진 캡처  \n- **촬영 후 로딩 인디케이터**: OCR 처리 진행 표시  \n\n#### 동작(Behavior)\n1. 촬영 버튼을 누르면 사진을 캡처하고 로컬 임시 파일에 저장한다.  \n2. 캡처된 이미지가 AWS Lambda OCR 마이크로서비스에 전송돼 JSON 형태(단어, 뜻, 예문)으로 변환된다.  \n3. 변환된 데이터가 자동으로 단어 저장 폼에 매핑되어 확인 후 DB에 저장한다.  \n\n#### 상태(States)\n1. **Ready** – 카메라 대기 상태  \n2. **Processing** – 이미지 업로드·OCR 진행 중  \n3. **Result** – 추출 결과 미리보기·수정 가능  \n\n### 단어 추가 – 링크 공유 화면\n\n- **텍스트 입력 필드**: 브라우저에서 복사한 텍스트를 붙여넣음  \n- **자동 파싱 버튼**: “단어 추출” 트리거  \n- **미리보기 리스트**: 파싱된 단어·뜻·예문  \n\n#### 동작(Behavior)\n1. 사용자가 공유받은 텍스트를 붙여넣고 “단어 추출”을 누른다.  \n2. 백엔드 파싱 API가 텍스트를 분석해 단어 리스트를 반환한다.  \n3. 리스트에서 개별 항목을 선택·편집 후 저장한다.  \n\n#### 상태(States)\n1. **Input** – 텍스트 입력 대기  \n2. **Parsing** – 서버 파싱 진행 중  \n3. **Preview** – 파싱 결과 확인 및 편집  \n\n### 단어 추가 – 음성 인식 화면\n\n- **마이크 버튼**: 음성 녹음 시작/종료  \n- **음성 인식 결과 텍스트**: 실시간 전사  \n- **검색·저장 버튼**: 인식된 단어 검색 후 저장  \n\n#### 동작(Behavior)\n1. 마이크 버튼을 누르면 음성 인식이 시작되고 텍스트가 실시간으로 표시된다.  \n2. “검색·저장”을 누르면 인식된 단어를 사전 API로 조회해 뜻·예문을 가져온다.  \n3. 확인 후 로컬 DB에 저장한다.  \n\n#### 상태(States)\n1. **Listening** – 음성 녹음 및 전사 중  \n2. **Fetched** – 사전 데이터 조회 완료  \n\n### 단어 상세 화면 (Word Detail)\n\n- **카드 앞면**: 단어, 발음 아이콘, 이미지(있다면)  \n- **카드 뒷면**: 뜻, 예문, 메모 입력란  \n- **편집·삭제 버튼**: 단어 정보 수정·삭제  \n\n#### 동작(Behavior)\n1. 카드 터치 시 앞·뒤면 전환 애니메이션이 실행된다.  \n2. 편집 버튼을 누르면 모달 형태로 단어·뜻·예문을 수정할 수 있다.  \n\n#### 상태(States)\n1. **View** – 읽기 전용  \n2. **Edit** – 편집 모드  \n\n## 4. API 설계\n\n### OCR 이미지 처리 API\n\n#### 로직\n1. 클라이언트가 이미지 파일을 multipart/form-data 로 전송한다.  \n2. Lambda 함수가 이미지에서 텍스트를 OCR 추출한다.  \n3. 추출된 텍스트를 자연어 처리(NLP) 모듈에 전달해 단어·뜻·예문 JSON을 생성한다.  \n\n#### Request JSON\n```json\n{\n  \"imageUrl\": \"https://s3.amazonaws.com/bucket/tmp/abcd1234.jpg\"\n}\n```\n\n#### Response JSON\n```json\n{\n  \"words\": [\n    {\n      \"word\": \"serendipity\",\n      \"meaning\": \"우연히 찾아낸 행운\",\n      \"example\": \"It was pure serendipity that we met.\",\n      \"imageUrl\": null\n    }\n    // ...다중단어 지원\n  ]\n}\n```\n\n### 텍스트 파싱 API\n\n#### 로직\n1. 클라이언트가 텍스트 블록을 POST한다.  \n2. 서버가 정규식·NLP 기반 파싱으로 단어와 연관 정보를 추출한다.  \n\n#### Request JSON\n```json\n{\n  \"rawText\": \"Lorem ipsum ... *serendipity* : 우연히 찾아낸 행운\"\n}\n```\n\n#### Response JSON\n```json\n{\n  \"parsedWords\": [\n    {\n      \"word\": \"serendipity\",\n      \"meaning\": \"우연히 찾아낸 행운\",\n      \"example\": null\n    }\n  ]\n}\n```\n\n### 사전 조회 API (음성 인식 후)\n\n#### 로직\n1. 단어 문자열을 전달하면 외부 사전(예: Oxford API) 호출 후 결과를 반환한다.  \n\n#### Request JSON\n```json\n{\n  \"query\": \"serendipity\"\n}\n```\n\n#### Response JSON\n```json\n{\n  \"word\": \"serendipity\",\n  \"meaning\": \"우연히 찾아낸 행운\",\n  \"example\": \"Finding the old photo album was pure serendipity.\"\n}\n```\n\n## 5. 데이터베이스 설계\n\n### words 테이블\n\n```sql\nCREATE TABLE words (\n    id          INTEGER PRIMARY KEY AUTOINCREMENT,\n    word        TEXT    NOT NULL,\n    meaning     TEXT,\n    example     TEXT,\n    image_path  TEXT,               -- 로컬 이미지 경로(선택)\n    created_at  DATETIME DEFAULT (datetime('now')),\n    updated_at  DATETIME DEFAULT (datetime('now'))\n);\n```\n\n### user_meta 테이블 (옵션)\n\n```sql\nCREATE TABLE user_meta (\n    id            INTEGER PRIMARY KEY AUTOINCREMENT,\n    total_words   INTEGER DEFAULT 0,\n    last_review   DATETIME,\n    created_at    DATETIME DEFAULT (datetime('now'))\n);\n```\n\n## 6. 파일 구조\n\n```\n📦 src\n ┣ 📂components\n ┃ ┣ 📂WordCard.tsx\n ┃ ┣ 📂WordListItem.tsx\n ┃ ┗ 📂AddWordModal.tsx\n ┣ 📂screens\n ┃ ┣ 📂HomeScreen.tsx\n ┃ ┣ 📂CameraScreen.tsx\n ┃ ┣ 📂ShareTextScreen.tsx\n ┃ ┣ 📂VoiceInputScreen.tsx\n ┃ ┗ 📂WordDetailScreen.tsx\n ┣ 📂services\n ┃ ┣ 📂api\n ┃ │ ┣ ocr.ts\n ┃ │ ┣ parseText.ts\n ┃ │ ┗ dictionary.ts\n ┃ ┗ 📂storage\n ┃   ┗ db.ts               // SQLite 연동\n ┣ 📂navigation\n ┃ ┗ AppNavigator.tsx\n ┣ 📂hooks\n ┃ ┗ useWordStore.ts\n ┣ App.tsx\n ┗ tsconfig.json\n```\n\n## 7. 비즈니스 정책 및 성공 지표\n\n- **정책**\n  - 모든 단어 데이터는 로컬 SQLite에 암호화 없이 저장하되, 옵션으로 클라우드 동기화 제공.  \n  - OCR·사전 API 사용량 초과 방지를 위해 일일 요청 한도(무료 플랜 기준 5,000건) 적용하고, 초과 시 프리미엄 플랜 안내.  \n  - 개인정보(음성 녹음 파일 등)는 즉시 삭제하고, 로그에는 저장하지 않는다.  \n\n- **성공 지표**\n  1. **월간 활성 사용자(DAU/MAU)** ≥ 30% 성장률 (출시 6개월 내)  \n  2. **단어 저장 평균 수** ≥ 150개/사용자 (3개월 차)  \n  3. **OCR 인식 정확도** ≥ 92% (내부 테스트)  \n  4. **앱 충성도** – 60일 연속 사용률 ≥ 40%  \n  5. **프리미엄 전환율** – 무료 → 프리미엄 플랜 전환율 5% 이상 (광고·추가 사전 API 사용)  \n\n--- \n\n*본 PRD는 초기 단계이며, 구현 진행 과정에서 상세 요구사항 및 UI/UX 피드백에 따라 업데이트될 수 있습니다.*
+1. 개요
+
+1.1 목적
+
+모바일 환경에서 사용자가 쉽게 단어를 수집·저장·복습할 수 있도록 지원하는 개인 맞춤형 단어장 서비스 제공. 사진·드래그·음성 입력을 통해 얻은 영단어를 자동으로 텍스트화하고 DB에 저장하여, 카드·목록 형태로 언제든지 확인·학습할 수 있게 함.
+
+
+1.2 핵심 가치 제안
+
+
+언제·어디서든 단어 캡처 – 사진 OCR, 드래그‑공유, 음성인식 3가지 입력 방식 지원
+
+자동 정의·예문 제공 – 외부 사전 API 연동으로 단어 의미·예문을 바로 저장
+
+플래시카드·목록 뷰 – 학습 효율을 높이는 카드 플립·리스트 UI 제공
+
+오프라인 학습 – 로컬 DB에 저장된 단어는 인터넷 연결이 없어도 복습 가능
+
+
+
+2. 기술 스택
+
+Frontend
+
+
+React Native (Expo)
+
+UI 라이브러리: React Native Paper / Styled‑Components
+
+상태 관리: Redux Toolkit + RTK Query
+
+이미지·음성 처리: Expo‑Camera, Expo‑Audio, react‑native‑vision‑camera, react‑native‑speech‑to‑text
+
+
+Backend
+
+
+Node.js + Express (서버리스 함수 형태)
+
+이미지 OCR: Google Cloud Vision API
+
+사전 정의 조회: Oxford Dictionaries API / Merriam‑Webster API
+
+음성 → 텍스트: Google Speech‑to‑Text API
+
+
+Hosting
+
+
+Firebase Hosting (정적 파일)
+
+Firebase Cloud Functions (Express API 엔드포인트)
+
+Firebase Authentication (이메일/구글 로그인)
+
+
+DB
+
+
+Firebase Firestore – 사용자·단어 메타데이터 동기화
+
+SQLite (expo‑sqlite) – 오프라인 복습용 로컬 저장소 (주기적 동기화)
+
+
+
+3. 화면별 UI 구성
+
+Home (대시보드)
+
+
+Header: 현재 로그인 사용자 표시·설정 아이콘
+
+WordStatCard: 오늘 저장된 단어 수·누적 단어 수 시각화
+
+AddWordButton: ‘+’ 아이콘 → 캡처/드래그/음성 입력 선택 모달 오픈
+
+WordListPreview: 최근 저장 5개 단어 미리보기 (카드 형태)
+
+
+동작(Behavior)
+
+
+화면 로드 시 Firestore → 사용자의 단어 통계 fetch.
+
+AddWordButton 클릭 → AddWordModal 열림 → 3가지 입력 방식 중 선택.
+
+단어 저장 후 WordStatCard와 WordListPreview 실시간 업데이트.
+
+
+상태(States)
+
+
+Loading – 통계·리스트 로드 중 스피너 표시.
+
+Empty – 저장된 단어가 없을 경우 “아직 단어가 없어요” 안내 메시지.
+
+
+
+AddWordModal (단어 추가 선택 모달)
+
+
+OptionButton(Capture Image): 카메라 화면으로 이동
+
+OptionButton(Drag & Share): 시스템 공유 수신 화면으로 이동
+
+OptionButton(Voice Search): 음성 입력 화면으로 이동
+
+
+동작
+
+
+사용자가 선택한 옵션에 따라 해당 서브 화면으로 네비게이션.
+
+
+상태
+
+
+Idle – 옵션 선택 대기.
+
+Processing – 이미지·음성 전송 중 로딩 표시.
+
+
+
+CaptureScreen (사진 촬영 → OCR)
+
+
+CameraView: 실시간 미리보기 + 촬영 버튼
+
+CropOverlay: 사용자가 직접 영역 지정 가능
+
+ResultPreview: OCR 결과 텍스트 리스트, 선택/수정 가능
+
+
+동작
+
+
+촬영 → 사진 전송 → Cloud Vision OCR 호출.
+
+OCR 결과 반환 → 사용자가 원하는 단어 선택 후 SaveWordFlow 진행.
+
+
+상태
+
+
+Scanning – 사진 전송·분석 중.
+
+ResultReady – OCR 결과 표시.
+
+
+
+DragShareScreen (공유받은 텍스트 처리)
+
+
+SharedTextView: 시스템 공유로 받은 원문 텍스트 표시
+
+WordExtractor: 자동으로 영어 단어 추출(정규식) + 체크박스 리스트
+
+ConfirmButton: 선택 단어 저장 트리거
+
+
+동작
+
+
+공유받은 텍스트 자동 파싱 → 리스트 표시.
+
+사용자가 체크한 단어만 저장.
+
+
+상태
+
+
+Parsing – 텍스트 분석 중.
+
+Ready – 추출 결과 확인 가능.
+
+
+
+VoiceSearchScreen (음성 인식 → 단어 선택)
+
+
+MicButton: 음성 녹음 시작/종료
+
+TranscribedText: 실시간 텍스트 변환 결과 표시
+
+CandidateList: 인식된 단어 후보 리스트
+
+
+동작
+
+
+사용자가 음성 입력 → Speech‑to‑Text → 후보 단어 리스트 생성.
+
+후보 선택 → SaveWordFlow 로 이동.
+
+
+상태
+
+
+Listening – 마이크 활성화 중.
+
+Transcribing – 음성→텍스트 변환 중.
+
+
+
+WordListScreen (단어 목록)
+
+
+SearchBar: 키워드 검색
+
+WordItem: 단어·뜻·예문 요약 표시, 클릭 시 상세 카드 화면 이동
+
+SortToggle: 최근 저장 / 알파벳 순 정렬
+
+
+동작
+
+
+리스트 로드 → Firestore/SQLite 동기화.
+
+검색어 입력 → 실시간 필터링.
+
+
+상태
+
+
+Loading – 데이터 로드 중.
+
+Empty – 검색 결과 없음 안내.
+
+
+
+WordCardScreen (플래시카드 형태 상세)
+
+
+FrontSide: 단어와 이미지(있을 경우)
+
+BackSide: 의미·예문·제작일·태그
+
+FlipButton: 앞↔뒤 전환 애니메이션
+
+EditButton: 단어·뜻·예문 수정 모달
+
+DeleteButton: 삭제 확인 팝업
+
+
+동작
+
+
+카드를 탭 → 플립.
+
+편집/삭제 시 로컬 DB와 Firestore 동기화.
+
+
+상태
+
+
+Viewing – 플립 전/후 상태.
+
+Editing – 편집 모드.
+
+
+
+4. API 설계
+
+OCR 이미지 분석 API
+
+로직
+
+
+클라이언트가 이미지 파일(베이스64) 전송.
+
+Cloud Vision API 호출 → 텍스트 추출.
+
+추출된 텍스트 문자열을 JSON 형태로 반환.
+
+
+Request JSON
+
+{
+  "imageBase64": "<BASE64_ENCODED_IMAGE>"
+}
+
+Response JSON
+
+{
+  "text": "Extracted raw text from image",
+  "words": ["example", "capture", "react"],
+  "confidence": 0.94
+}
+
+
+단어 정의 조회 API
+
+로직
+
+
+단어 문자열을 받아 외부 사전 API(Oxford) 호출.
+
+의미·예문·발음 URL을 파싱.
+
+필요한 필드만 정제하여 반환.
+
+
+Request JSON
+
+{
+  "word": "serendipity"
+}
+
+Response JSON
+
+{
+  "word": "serendipity",
+  "definition": "the occurrence and development of events by chance in a happy or beneficial way",
+  "example": "A fortunate serendipity",
+  "pronunciationUrl": "https://audio.oxforddictionaries.com/en/mp3/serendipity_us_1.mp3"
+}
+
+
+단어 저장 API
+
+로직
+
+
+클라이언트가 단어 객체(텍스트·정의·예문·이미지URL·태그 등) 전송.
+
+인증된 사용자 UID 확인 후 Firestore words 컬렉션에 문서 생성.
+
+성공 시 저장된 문서 ID 반환.
+
+
+Request JSON
+
+{
+  "word": "ephemeral",
+  "definition": "lasting for a very short time",
+  "example": "Fame in the entertainment industry can be ephemeral.",
+  "imageUrl": "https://storage.googleapis.com/.../ephemeral.jpg",
+  "tags": ["adjective", "vocabulary"],
+  "source": "ocr"   // ocr | drag | voice
+}
+
+Response JSON
+
+{
+  "status": "success",
+  "docId": "a1B2c3D4e5F6"
+}
+
+
+5. 데이터베이스 설계
+
+users 테이블 (Firestore 컬렉션)
+
+{
+  "uid": "string (Firebase Auth UID)",
+  "email": "string",
+  "displayName": "string",
+  "createdAt": "timestamp",
+  "lastLogin": "timestamp"
+}
+
+words 테이블 (Firestore 컬렉션)
+
+CREATE TABLE words (
+    id STRING PRIMARY KEY,          -- Firestore document ID
+    uid STRING NOT NULL,            -- 소유자 UID (users.uid)
+    word STRING NOT NULL,
+    definition STRING,
+    example STRING,
+    imageUrl STRING,
+    tags ARRAY<STRING>,
+    source STRING,                  -- 'ocr' | 'drag' | 'voice'
+    createdAt TIMESTAMP,
+    updatedAt TIMESTAMP
+);
+
+local_words (SQLite) – 오프라인 복제
+
+CREATE TABLE local_words (
+    id TEXT PRIMARY KEY,
+    word TEXT NOT NULL,
+    definition TEXT,
+    example TEXT,
+    imagePath TEXT,
+    tags TEXT,          -- 콤마 구분 문자열
+    source TEXT,
+    created_at INTEGER,
+    updated_at INTEGER
+);
+
+
+6. 파일 구조
+
+/my-vocab-app
+│
+├─ /assets                # 아이콘·이미지·폰트
+│
+├─ /components
+│   ├─ Header.js
+│   ├─ WordStatCard.js
+│   ├─ WordItem.js
+│   ├─ WordCard.js
+│   └─ ... (공통 UI 컴포넌트)
+│
+├─ /screens
+│   ├─ HomeScreen.js
+│   ├─ CaptureScreen.js
+│   ├─ DragShareScreen.js
+│   ├─ VoiceSearchScreen.js
+│   ├─ WordListScreen.js
+│   └─ WordCardScreen.js
+│
+├─ /services
+│   ├─ api.js               # RTK Query 설정 / Firebase Functions 호출
+│   ├─ ocrService.js        # Cloud Vision 래퍼
+│   ├─ dictService.js       # 사전 API 래퍼
+│   └─ speechService.js    # Speech‑to‑Text 래퍼
+│
+├─ /store
+│   ├─ index.js
+│   ├─ userSlice.js
+│   └─ wordsSlice.js
+│
+├─ /utils
+│   ├─ validators.js
+│   ├─ formatters.js
+│   └─ constants.js
+│
+├─ App.js
+├─ app.json
+└─ package.json
+
+
+7. 비즈니스 정책 및 성공 지표
+
+비즈니스 정책
+
+
+개인정보 최소 수집 – 사용자의 이메일·UID만 저장, 이미지·음성 데이터는 일회성 처리 후 폐기.
+
+데이터 보관 기간 – 저장된 단어는 사용자가 직접 삭제할 때까지 영구 보관, 비활성 사용자(12개월 미접속) 데이터 자동 삭제.
+
+광고·수익 모델 – 프리미엄 구독 제공 (무제한 저장, 커스텀 테마, 광고 제거).
+
+접근성 – 다크모드, 화면 확대, 텍스트‑음성 변환(TTS) 지원.
+
+
+성공 지표 (KPIs)
+
+지표	목표 (1년)	측정 방법
+월간 활성 사용자 (MAU)	30,000명	Firebase Analytics
+일일 저장 단어 수 (DW)	5,000개	Firestore words 컬렉션 write count
+사용자당 평균 단어 저장 수	120개	Firestore aggregation
+프리미엄 전환율	4%	결제 API 로그
+사용자 유지율 (30일)	45%	Cohort 분석
+OCR·음성 인식 정확도	≥ 92%	내부 테스트 스크립트 (precision/recall)
+평균 단어 복습 세션 시간	5분	화면 체류 시간 로그
